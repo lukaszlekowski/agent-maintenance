@@ -3,11 +3,12 @@ import { nativeMutationCapabilities, nativeTerminationCapabilities, nativeTrustE
 import type { AgentId } from '../types.ts';
 import type { TuiServices, ActionResult, TrustSyncResult } from './contracts.ts';
 import { FileSettingsStore } from './settings.ts';
-import { unavailableGuiLauncher } from '../launcher/contracts.ts';
+import { createGuiLauncher } from '../gui/launcher.ts';
 
 const unavailableArchiveReason = 'Managed archives cannot be safely inspected until the protected-root storage backend is available';
 
 export function createDefaultTuiServices(): TuiServices {
+  const settings = new FileSettingsStore();
   const services: TuiServices = {
     loadInventory: () => collectInventory(),
     listArchives: async () => Object.freeze({ records: Object.freeze([]), available: false, reason: unavailableArchiveReason }),
@@ -31,7 +32,7 @@ export function createDefaultTuiServices(): TuiServices {
     syncTrust: async (sourceAgentId, path): Promise<readonly TrustSyncResult[]> => Object.freeze((['codex_cli', 'claude_code_cli', 'agy_cli', 'opencode_cli'] as const).map((agentId) => Object.freeze({
       agentId, ok: false, message: `Sync ${path} from ${sourceAgentId} is disabled. ${nativeTrustEditCapabilities[agentId].reason}`,
     }))),
-    settings: new FileSettingsStore(), guiLauncher: unavailableGuiLauncher,
+    settings, guiLauncher: createGuiLauncher({ settings }),
   };
   return Object.freeze(services);
 }

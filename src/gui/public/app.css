@@ -1,0 +1,18 @@
+:root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+body { margin: 0 auto; max-width: 1100px; padding: 1rem; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+h1 { font-size: 1.35rem; margin: .3rem 0 1rem; }
+nav { display: flex; flex-wrap: wrap; gap: .45rem; border-bottom: 1px solid #8888; padding-bottom: .8rem; }
+button, input, select { font: inherit; padding: .4rem .65rem; }
+button { cursor: pointer; }
+button[aria-current="page"] { outline: 2px solid #4d9fff; }
+main { padding: 1rem 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .8rem; }
+.card { border: 1px solid #8887; border-radius: .5rem; padding: .85rem; overflow-wrap: anywhere; }
+.card h3 { margin: 0 0 .3rem; }
+.muted { color: #888; }
+.disabled { color: #b76b00; }
+.actions, .field { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-top: .6rem; }
+label { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+#result { display: block; white-space: pre-wrap; overflow-wrap: anywhere; padding: .4rem; }
+@media (max-width: 560px) { header { display: block; } body { padding: .65rem; } }

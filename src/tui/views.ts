@@ -92,7 +92,7 @@ function settingRows(settings: MaintenanceConfig): UiRow[] {
     { kind: 'setting', key: 'displayWarnings', label: 'Display safety warnings (w)', value: String(settings.displayWarnings) },
     { kind: 'setting', key: 'showArchiveNotice', label: 'Show archive notice (n)', value: String(settings.showArchiveNotice) },
     { kind: 'setting', key: 'theme', label: 'Theme (h)', value: settings.theme },
-    { kind: 'setting', key: 'gui', label: 'Open desktop interface (g)', value: 'Phase 6 launcher' },
+    { kind: 'setting', key: 'gui', label: 'Open desktop interface (g)', value: 'Loopback browser GUI' },
   ];
 }
 
@@ -107,7 +107,7 @@ function helpRows(): UiRow[] {
     { kind: 'help', label: 'Settings', value: 't/p edit; c/w/n toggles; h theme; g GUI launcher' },
     { kind: 'help', label: 'Modal', value: 'Enter/y confirms, Esc/n cancels; shortcuts are scoped away' },
     { kind: 'help', label: 'Ownership', value: 'UNKNOWN blocks storage and termination; no activity is inferred' },
-    { kind: 'help', label: 'GUI', value: 'Settings → g requests the shared launcher; GUI server is Phase 6' },
+    { kind: 'help', label: 'GUI', value: 'Settings → g opens the authenticated loopback browser interface' },
   ];
 }
 
