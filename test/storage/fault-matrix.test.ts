@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
+import { durableStorageTest as test } from './support/platform-test.ts';
 import { StorageTransactionEngine } from '../../src/storage/engine.ts';
 import type { DurableOperation, FaultHook, OperationFault } from '../../src/storage/durable-fs.ts';
 import { controlledTestBackend } from '../../src/storage/safety.ts';

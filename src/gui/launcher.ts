@@ -1,4 +1,5 @@
 import { fork, type ChildProcess } from 'node:child_process';
+import { access } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { probeProcessIdentity } from '../core/process.ts';
@@ -96,7 +97,7 @@ async function startNew(root: string, recordPath: string, dependencies: GuiLaunc
 }
 
 export async function spawnPendingServer(): Promise<PendingServer> {
-  const entry = fileURLToPath(new URL('./server-entry.ts', import.meta.url));
+  const entry = await resolveServerEntry();
   const child = fork(entry, [], { execArgv: ['--experimental-strip-types'], detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
   await new Promise<void>((resolve, reject) => { child.once('spawn', () => resolve()); child.once('error', reject); });
   const childPid = child.pid;
@@ -161,6 +162,15 @@ export async function spawnPendingServer(): Promise<PendingServer> {
       throw new Error('GUI child remained alive after bounded SIGTERM/SIGKILL cleanup');
     },
   };
+}
+
+export async function resolveServerEntry(moduleUrl: string = import.meta.url): Promise<string> {
+  const candidates = [new URL('./server-entry.ts', moduleUrl), new URL('./gui/server-entry.js', moduleUrl)];
+  for (const candidate of candidates) {
+    const path = fileURLToPath(candidate);
+    try { await access(path); return path; } catch { /* Try the source-tree fallback for packaged bundles. */ }
+  }
+  throw new Error('GUI server child entry is missing from both the source tree and packaged bundle');
 }
 
 async function challengeServer(record: GuiInstanceRecord): Promise<boolean> {

@@ -1,21 +1,23 @@
 {
   "name": "agent-maintenance",
   "version": "0.1.0",
-  "private": true,
-  "description": "Safety primitives for agent session maintenance",
+  "license": "MIT",
+  "private": false,
+  "description": "Capability-gated agent session inventory and maintenance",
   "type": "module",
   "engines": {
     "node": ">=22.18.0 <27"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup --config tsup.config.ts && tsup --config tsup.cli.config.ts && tsup --config tsup.server.config.ts && node scripts/copy-gui-assets.mjs",
+    "prepare": "npm run build",
     "test:bundle": "node scripts/test-built-api.mjs",
     "tui": "node --experimental-strip-types src/tui/cli.ts",
     "gui": "node --experimental-strip-types src/gui/launch-cli.ts",
     "inventory": "node --experimental-strip-types src/cli.ts inventory --json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",
-    "test": "node --experimental-strip-types --test test/**/*.test.ts"
+    "test": "node scripts/test-platform.mjs"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.7",
@@ -30,7 +32,6 @@
     "typescript-eslint": "^8.48.0"
   },
   "dependencies": {
-    "fs-ext": "^2.1.1",
     "ink": "^5.2.1",
     "react": "^18.3.1",
     "smol-toml": "^1.9.0",
@@ -38,5 +39,11 @@
   },
   "allowScripts": {
     "fs-ext@2.1.1": true
+  },
+  "optionalDependencies": { "fs-ext": "^2.1.1" },
+  "bin": { "agent-maintenance": "bin/agent-maintenance.js" },
+  "files": ["bin/", "dist/", "README.md", "LICENSE"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" }
   }
 }

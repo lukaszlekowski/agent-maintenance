@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
-import test from 'node:test';
+import nodeTest from 'node:test';
+import { durableStorageTest as test } from '../storage/support/platform-test.ts';
 import { assessMutationCapability, nativeMutationCapabilities } from '../../src/mutations/capabilities.ts';
 import { archiveHash, actualSchemaFingerprint } from '../../src/mutations/sqlite-codec.ts';
 import { SqliteDependencyStore } from '../../src/mutations/sqlite-store.ts';
@@ -188,7 +189,7 @@ test('database recovery ignores forged absolute archive paths and uses managed a
   assert.equal(rows(x.databasePath, 'sessions').length, 1);
 });
 
-test('production protected-root backend and cross-boundary fixture evidence fail closed', async (t) => {
+nodeTest('production protected-root backend and cross-boundary fixture evidence fail closed', async (t) => {
   const x = await fixture(t);
   const productionEngine = new StorageTransactionEngine({ storageRoot: join(x.root, 'production-managed'), trustedRoots: [] }, x.storageAdapter);
   const productionCapability = assessMutationCapability({ operation: 'database', controlBoundary: 'protected-production', adapterId: 'agy_cli', version: 'fixture-1',

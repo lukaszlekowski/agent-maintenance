@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { launch, spawnPendingServer } from '../../src/gui/launcher.ts';
+import { launch, resolveServerEntry, spawnPendingServer } from '../../src/gui/launcher.ts';
 import { defaultRecordPath, readStoredRecord } from '../../src/gui/instance-record.ts';
 import type { ChildServerConfig } from '../../src/gui/contracts.ts';
 import { probeProcessIdentity } from '../../src/core/process.ts';
@@ -60,6 +60,12 @@ test('GUI launcher reuses only the same live authenticated instance and reconcil
     assert.equal(spawns, 3, 'a reused PID with a different process-start identity is stale');
     assert.equal((await readStoredRecord(defaultRecordPath(root)))?.record.pid, 12003);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('packaged launcher resolves its source child entry relative to the bundled module', async () => {
+  const builtModule = new URL('../../dist/main.js', import.meta.url).href;
+  const entry = await resolveServerEntry(builtModule);
+  assert.match(entry.replaceAll('\\', '/'), /\/dist\/gui\/server-entry\.js$/);
 });
 
 test('malformed GUI instance records are preserved and block unsafe replacement', async () => {

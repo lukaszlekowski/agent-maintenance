@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
+import nodeTest from 'node:test';
+import { durableStorageTest as test } from './support/platform-test.ts';
 import type { FaultHook } from "../../src/storage/durable-fs.ts";
 
 import { StorageTransactionEngine } from '../../src/storage/engine.ts';
@@ -222,7 +223,7 @@ test('active and unknown ownership/activity block archive and recovery mutations
   }
 });
 
-test('production protected-root backend fails closed before creating managed storage', async (t) => {
+nodeTest('production protected-root backend fails closed before creating managed storage', async (t) => {
   const x = await setup(t);
   const disabled = new StorageTransactionEngine({ storageRoot: join(x.root, 'uncreated-managed'), trustedRoots: [{ id: 'AGENT_DATA', path: x.data }] }, x.adapter);
   await assert.rejects(disabled.archive(x.sid, 'archive'), (error: unknown) => error instanceof MaintenanceError && error.code === 'RACE_SAFE_BACKEND_UNAVAILABLE');
