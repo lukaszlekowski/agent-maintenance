@@ -9,3 +9,8 @@ export * from './adapters/codex.ts';
 export * from './adapters/codex-trust.ts';
 export * from './adapters/opencode.ts';
 export * from './inventory.ts';
+export { StorageTransactionEngine } from './storage/engine.ts';
+export type { StorageAdapter, StorageEngineOptions, ArchiveRecord, RecoveryDiagnostic, StorageAction } from './storage/engine.ts';
+export type { StorageFilesystemBackend, StorageSafetyEvidence, OwnershipObservation, ActivityObservation } from './storage/safety.ts';
+export { JOURNAL_VERSION, MANIFEST_VERSION, REGISTRY_VERSION, parseJournal, parseManifest, parseRegistry } from './storage/schema.ts';
+export type { ArchiveCategory, ArchiveManifest, JournalState, ObjectIdentity, RegistryEntry, StorageJournal, StoragePathMapping, StorageRegistry } from './storage/schema.ts';
