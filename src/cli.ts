@@ -45,6 +45,20 @@ function stableError(error: unknown): { readonly code: string; readonly message:
 export function serializeInventoryJson(value: unknown): string { return JSON.stringify(value); }
 export function serializeInventoryError(error: unknown): string { return serializeInventoryJson({ error: stableError(error) }); }
 
+export async function collectInventory(codexHome = process.env.CODEX_HOME ?? join(homedir(), '.codex')) {
+  if (!isAbsolute(codexHome)) throw new MaintenanceError('CLI_ARGUMENT_INVALID', 'Codex home must be an absolute path');
+  const [codexVersion, claudeVersion, openCodeVersion, agyVersion] = await Promise.all([
+    runReadOnlyTool('codex', ['--version'], tmpdir()), runReadOnlyTool('claude', ['--version'], tmpdir()),
+    runReadOnlyTool('opencode', ['--version'], tmpdir()), runReadOnlyTool('agy', ['--version'], tmpdir()),
+  ]);
+  const codex = await readCodexInventory(codexHome, codexVersion);
+  const adapters: AdapterInventoryStatus[] = [codex.status,
+    unsupportedAdapter('claude_code_cli', claudeVersion, 'No stable, versioned session transcript schema or read-only inventory endpoint is validated; parsing remains disabled'),
+    unsupportedAdapter('agy_cli', agyVersion, 'Official CLI documents interactive conversation selection, but no stable local session schema or read-only inventory endpoint is validated'),
+    unsupportedAdapter('opencode_cli', openCodeVersion, 'OpenCode CLI startup initializes a write-capable database runtime (migrations/WAL/checkpoints); native listing is disabled until a validated read-only storage interface exists')];
+  return buildInventory({ sessions: codex.sessions, adapters, trustPaths: codex.trustPaths });
+}
+
 export async function runInventory(args: readonly string[] = process.argv.slice(2)): Promise<number> {
   if (args[0] !== 'inventory') {
     process.stderr.write('Usage: agent-maintenance inventory --json [--codex-home ABSOLUTE_PATH]\n');
@@ -65,20 +79,7 @@ export async function runInventory(args: readonly string[] = process.argv.slice(
     return 64;
   }
   try {
-    const [codexVersion, claudeVersion, openCodeVersion, agyVersion] = await Promise.all([
-      runReadOnlyTool('codex', ['--version'], tmpdir()),
-      runReadOnlyTool('claude', ['--version'], tmpdir()),
-      runReadOnlyTool('opencode', ['--version'], tmpdir()),
-      runReadOnlyTool('agy', ['--version'], tmpdir()),
-    ]);
-    const codex = await readCodexInventory(options.codexHome, codexVersion);
-    const adapters: AdapterInventoryStatus[] = [
-      codex.status,
-      unsupportedAdapter('claude_code_cli', claudeVersion, 'No stable, versioned session transcript schema or read-only inventory endpoint is validated; parsing remains disabled'),
-      unsupportedAdapter('agy_cli', agyVersion, 'Official CLI documents interactive conversation selection, but no stable local session schema or read-only inventory endpoint is validated'),
-      unsupportedAdapter('opencode_cli', openCodeVersion, 'OpenCode CLI startup initializes a write-capable database runtime (migrations/WAL/checkpoints); native listing is disabled until a validated read-only storage interface exists'),
-    ];
-    const inventory = await buildInventory({ sessions: codex.sessions, adapters, trustPaths: codex.trustPaths });
+    const inventory = await collectInventory(options.codexHome);
     process.stdout.write(`${serializeInventoryJson(inventory)}\n`);
     return 0;
   } catch (error) {
