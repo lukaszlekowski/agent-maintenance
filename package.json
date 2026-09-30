@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "test:bundle": "node scripts/test-built-api.mjs",
     "inventory": "node --experimental-strip-types src/cli.ts inventory --json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",

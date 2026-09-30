@@ -144,6 +144,7 @@ export class ArchiveFlow extends RestoreFlow {
     const registry = await this.loadRegistry();
     const records: ArchiveRecord[] = [];
     for (const entry of registry.entries) {
+      if (entry.participant === 'database') continue;
       if (entry.status !== 'REGISTERED' || (agentId && entry.agentId !== agentId) || (sidFilter && entry.sessionId !== sidFilter)) continue;
       const location = await resolveMappedPath(this.roots, { baseRoot: entry.rootId, relativePath: nativeRel(entry.relativePath) });
       const manifest = parseManifest(await readJson(join(location, 'manifest.json'), 'MANIFEST_INVALID'));

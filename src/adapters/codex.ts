@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { MaintenanceError, disabledCapabilities, sessionId, type AdapterCapabilities, type AdapterInventoryStatus, type AgentId, type InventorySession, type SchemaVersion, type TrustPathObservation } from '../types.ts';
+import { MaintenanceError, sessionId, type AdapterCapabilities, type AdapterInventoryStatus, type AgentId, type InventorySession, type SchemaVersion, type TrustPathObservation } from '../types.ts';
 import { CODEX_TRUST_CONFIG_FINGERPRINT, CODEX_TRUST_CONFIG_SCHEMA, readCodexProjectTrust } from './codex-trust.ts';
+import { nativeAdapterCapabilities } from '../mutations/capabilities.ts';
 
 export const CODEX_SUPPORTED_VERSION = 'codex-cli 0.159.2';
 export const CODEX_INDEX_SCHEMA_VERSION = 'openai/codex rust-v0.159.2 SessionIndexEntry';
@@ -42,7 +43,7 @@ export function parseCodexSessionIndex(text: string): readonly CodexIndexEntry[]
 }
 
 function supportedCapabilities(reason: string, sessionRead: AdapterCapabilities['sessionRead']): AdapterCapabilities {
-  const disabled = disabledCapabilities(reason);
+  const disabled = nativeAdapterCapabilities('codex_cli', reason);
   return Object.freeze({ ...disabled, sessionRead, trustRead: Object.freeze({ enabled: true, reason: `Read-only ${CODEX_TRUST_CONFIG_SCHEMA} extraction is validated for exact version ${CODEX_SUPPORTED_VERSION}` }) });
 }
 
@@ -57,7 +58,7 @@ export async function readCodexInventory(root: string, detectedVersion: string |
       ? 'Codex executable version is unavailable; supported schema/version is not established'
       : `Codex ${detectedVersion} is outside the exact validated parser version ${CODEX_SUPPORTED_VERSION}`;
     return Object.freeze({ sessions: Object.freeze([]), trustPaths: Object.freeze([]), status: Object.freeze({
-      agentId: 'codex_cli', version: detectedVersion, schema: null, capabilities: disabledCapabilities(reason), explanation: reason,
+      agentId: 'codex_cli', version: detectedVersion, schema: null, capabilities: nativeAdapterCapabilities('codex_cli', reason), explanation: reason,
     }) });
   }
 

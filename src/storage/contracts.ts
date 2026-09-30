@@ -27,6 +27,7 @@ export interface StorageEngineOptions {
 }
 
 export interface ArchiveRecord {
+  readonly participant?: 'session' | 'database';
   readonly archiveId: string;
   readonly txId: string;
   readonly agentId: AgentId;
@@ -37,6 +38,27 @@ export interface ArchiveRecord {
   readonly rootId: string;
   readonly relativePath: string;
 }
+
+export interface ManagedDatabaseParticipant {
+  readonly txId: string;
+  readonly archiveId: string;
+  readonly creationTxId: string;
+  readonly agentId: AgentId;
+  readonly sessionId: string;
+  readonly schemaFingerprint: string;
+  readonly boundary: 'controlled-test' | 'protected-production';
+  writeArchive(bytes: Uint8Array): Promise<void>;
+  readArchive(): Promise<Buffer>;
+  writeJournal(value: unknown): Promise<void>;
+  readJournal(): Promise<unknown | null>;
+  setArchiveStatus(status: RegistryEntry['status']): Promise<void>;
+}
+
+export interface ManagedDatabaseRecoveryParticipant {
+  recoverManagedTransactions(): Promise<readonly RecoveryDiagnostic[]>;
+}
+
+export interface ManagedDatabaseJournalRef { readonly txId: string; readonly archiveId: string; readonly sessionId: string }
 
 export interface RecoveryDiagnostic {
   readonly txId: string;
@@ -89,4 +111,3 @@ export async function readJson(path: string, code: string): Promise<unknown | nu
 }
 
 export function emptyRegistry(): StorageRegistry { return Object.freeze({ registryVersion: REGISTRY_VERSION, entries: Object.freeze([]), diagnostics: Object.freeze([]) }); }
-

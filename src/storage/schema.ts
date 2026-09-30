@@ -101,6 +101,7 @@ export interface StorageJournal {
 }
 
 export interface RegistryEntry {
+  readonly participant?: 'session' | 'database';
   readonly archiveId: ArchiveId;
   readonly txId: TransactionId;
   readonly agentId: AgentId;
@@ -272,7 +273,8 @@ export function parseRegistry(value: unknown): StorageRegistry {
   const entries = value.entries.map((row): RegistryEntry => {
     if (!isRecord(row) || !isString(row.rootId) || !/^[A-Z][A-Z0-9_]{0,63}$/.test(row.rootId) || !isSafeRel(row.relativePath) || !['archived','deleted','temp'].includes(String(row.category))
       || !['RESERVED','REGISTERED','RECOVERY_PENDING'].includes(String(row.status)) || !AGENT_IDS.includes(row.agentId as AgentId)) throw new MaintenanceError('REGISTRY_SCHEMA_INVALID', 'Storage registry entry is invalid');
-    try { if (!isString(row.archiveId) || !isGeneratedUuid(row.archiveId) || !isString(row.txId) || !isGeneratedUuid(row.txId) || !isString(row.sessionId)) throw new Error('identifier type'); return Object.freeze({ ...row, archiveId: archiveId(row.archiveId), txId: transactionId(row.txId), sessionId: sessionId(row.sessionId), agentId: row.agentId as AgentId, category: row.category as ArchiveCategory, rootId: row.rootId, relativePath: row.relativePath, status: row.status as RegistryEntry['status'] }); }
+    try { if (!isString(row.archiveId) || !isGeneratedUuid(row.archiveId) || !isString(row.txId) || !isGeneratedUuid(row.txId) || !isString(row.sessionId)
+      || (row.participant !== undefined && row.participant !== 'session' && row.participant !== 'database')) throw new Error('identifier type'); return Object.freeze({ ...row, archiveId: archiveId(row.archiveId), txId: transactionId(row.txId), sessionId: sessionId(row.sessionId), agentId: row.agentId as AgentId, category: row.category as ArchiveCategory, rootId: row.rootId, relativePath: row.relativePath, status: row.status as RegistryEntry['status'], ...(row.participant === undefined ? {} : { participant: row.participant as 'session' | 'database' }) }); }
     catch { throw new MaintenanceError('REGISTRY_SCHEMA_INVALID', 'Storage registry identifiers are invalid'); }
   });
   const seen = new Set<string>();

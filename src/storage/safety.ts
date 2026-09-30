@@ -21,8 +21,12 @@ export interface StorageFilesystemBackend {
   assertAvailable(): void;
 }
 
+const authorizedBackends = new WeakSet<object>();
+function issueBackend<T extends StorageFilesystemBackend>(backend: T): T { authorizedBackends.add(backend); return Object.freeze(backend); }
+export function isAuthorizedStorageBackend(backend: StorageFilesystemBackend): boolean { return Boolean(backend && authorizedBackends.has(backend)); }
+
 /** No production backend is registered until handle-relative protected-root operations are implemented. */
-export const protectedRootBackend: StorageFilesystemBackend = Object.freeze({
+export const protectedRootBackend: StorageFilesystemBackend = issueBackend({
   kind: 'protected-root',
   assertAvailable(): never {
     throw new MaintenanceError('RACE_SAFE_BACKEND_UNAVAILABLE', 'Handle-relative protected-root operations are unavailable; storage mutation is disabled');
@@ -31,7 +35,7 @@ export const protectedRootBackend: StorageFilesystemBackend = Object.freeze({
 
 /** Explicit test-only backend. Path-based helpers are permitted only against disposable controlled roots. */
 export function controlledTestBackend(): StorageFilesystemBackend {
-  return Object.freeze({ kind: 'controlled-test', assertAvailable: () => undefined });
+  return issueBackend({ kind: 'controlled-test', assertAvailable: () => undefined });
 }
 
 export function adapterSchemaKey(schema: SchemaVersion): string {
@@ -44,6 +48,7 @@ export function assertStorageSafety(evidence: StorageSafetyEvidence, expected: {
   readonly adapterSchema: string;
   readonly backend: StorageFilesystemBackend;
 }): void {
+  if (!isAuthorizedStorageBackend(expected.backend)) throw new MaintenanceError('STORAGE_BACKEND_UNISSUED', 'Filesystem backend did not originate from the supported backend issuer');
   if (expected.backend.kind !== 'controlled-test') {
     expected.backend.assertAvailable();
     throw new MaintenanceError('RACE_SAFE_BACKEND_UNAVAILABLE', 'No registered storage filesystem backend can prove race-safe object operations');

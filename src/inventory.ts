@@ -1,8 +1,9 @@
 import { probeWorkspacePath, type MountProbe } from './core/paths.ts';
-import { disabledCapabilities, type AdapterInventoryStatus, type AgentId, type AgentInventory, type InventorySession, type InventoryTrustEntry, type TrustPathObservation } from './types.ts';
+import { nativeAdapterCapabilities } from './mutations/capabilities.ts';
+import { type AdapterInventoryStatus, type AgentId, type AgentInventory, type InventorySession, type InventoryTrustEntry, type TrustPathObservation } from './types.ts';
 
 export function unsupportedAdapter(agentId: AgentId, version: string | null, explanation: string): AdapterInventoryStatus {
-  return Object.freeze({ agentId, version, schema: null, capabilities: disabledCapabilities(explanation), explanation });
+  return Object.freeze({ agentId, version, schema: null, capabilities: nativeAdapterCapabilities(agentId, explanation), explanation });
 }
 
 export async function buildInventory(input: {

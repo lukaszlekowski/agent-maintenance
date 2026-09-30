@@ -1,21 +1,66 @@
 import { ensurePrivateDirectory } from './durable-directories.ts';
-import { ROOT_ID_STORAGE, ROOT_ID_TEMP, adapterSchemaId, posixRel, nativeRel, isNotFound, readJson, emptyRegistry, type StorageAdapter, type StorageEngineOptions, type ArchiveRecord } from './contracts.ts';
+import { ROOT_ID_STORAGE, ROOT_ID_TEMP, adapterSchemaId, posixRel, nativeRel, isNotFound, readJson, emptyRegistry, safeSessionId, type StorageAdapter, type StorageEngineOptions, type ArchiveRecord } from './contracts.ts';
 
-import { lstat } from 'node:fs/promises';
+import { lstat, open, readFile, readdir } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 
 import { join } from 'node:path';
 import { withMaintenanceLocks } from '../core/locks.ts';
 import { resolveMappedPath, resolveTrustedRoots } from '../core/paths.ts';
-import { MaintenanceError, type AgentRoot } from '../types.ts';
-import { assertStorageSafety, protectedRootBackend } from './safety.ts';
-import { assertDurableRoot, atomicWriteJson, checkpoint, syncDirectory } from './durable-fs.ts';
+import { MaintenanceError, archiveId, transactionId, type AgentRoot } from '../types.ts';
+import { assertStorageSafety, isAuthorizedStorageBackend, protectedRootBackend } from './safety.ts';
+import { assertDurableRoot, atomicWriteJson, checkpoint, reserveDirectoryNoReplace, syncDirectory } from './durable-fs.ts';
 import { parseJournal, parseManifest, parseRegistry, type ArchiveManifest, type RegistryEntry, type StorageJournal, type StorageRegistry } from './schema.ts';
+import type { ManagedDatabaseJournalRef, ManagedDatabaseParticipant, ManagedDatabaseRecoveryParticipant } from './contracts.ts';
 export class StorageEngineBase {
   protected readonly options: StorageEngineOptions;
   protected readonly adapter: StorageAdapter;
   protected roots = new Map<string, string>();
   protected readyPromise: Promise<void> | undefined;
+  private readonly databaseRecoveryParticipants = new Map<string, ManagedDatabaseRecoveryParticipant>();
   constructor(options: StorageEngineOptions, adapter: StorageAdapter) { this.options = options; this.adapter = adapter; }
+  get mutationBoundary(): 'controlled-test' | 'protected-production' { return (this.options.backend ?? protectedRootBackend).kind === 'controlled-test' ? 'controlled-test' : 'protected-production'; }
+  registerDatabaseRecoveryParticipant(key: string, participant: ManagedDatabaseRecoveryParticipant): void { this.databaseRecoveryParticipants.set(key, participant); }
+  protected async recoverDatabaseParticipants(): Promise<readonly import('./contracts.ts').RecoveryDiagnostic[]> {
+    const results = await Promise.all([...this.databaseRecoveryParticipants.values()].map((participant) => participant.recoverManagedTransactions()));
+    return Object.freeze(results.flat());
+  }
+
+  async listDatabaseJournalRefs(agentId: string): Promise<readonly ManagedDatabaseJournalRef[]> {
+    await this.ready();
+    const lockDirectory = join(this.roots.get(ROOT_ID_STORAGE)!, 'locks');
+    return withMaintenanceLocks(['maintenance'], { lockDirectory }, async () => {
+      const txRoot = join(this.roots.get(ROOT_ID_STORAGE)!, 'transactions');
+      const files = (await readdir(txRoot)).filter((name) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.database\.json$/i.test(name));
+      const refs: ManagedDatabaseJournalRef[] = [];
+      for (const name of files) {
+        const raw = await readJson(join(txRoot, name), 'DB_JOURNAL_INVALID');
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const row = raw as Record<string, unknown>;
+        if (row.adapterId === agentId && typeof row.transactionId === 'string' && typeof row.archiveId === 'string' && typeof row.sessionId === 'string') {
+          refs.push(Object.freeze({ txId: row.transactionId, archiveId: row.archiveId, sessionId: row.sessionId }));
+        }
+      }
+      const seen = new Set(refs.map((ref) => ref.txId));
+      const registry = await this.loadRegistry();
+      for (const entry of registry.entries) {
+        if (entry.participant === 'database' && entry.agentId === agentId && entry.status !== 'REGISTERED' && !seen.has(entry.txId)) {
+          refs.push(Object.freeze({ txId: entry.txId, archiveId: entry.archiveId, sessionId: entry.sessionId }));
+        }
+      }
+      return Object.freeze(refs);
+    });
+  }
+
+  async listDatabaseArchives(agentId: string, sessionId?: string): Promise<readonly RegistryEntry[]> {
+    await this.ready();
+    const lockDirectory = join(this.roots.get(ROOT_ID_STORAGE)!, 'locks');
+    return withMaintenanceLocks(['maintenance'], { lockDirectory }, async () => {
+      const registry = await this.loadRegistry();
+      return Object.freeze(registry.entries.filter((entry) => entry.participant === 'database' && entry.agentId === agentId
+        && entry.status === 'REGISTERED' && (sessionId === undefined || entry.sessionId === sessionId)));
+    });
+  }
 
   protected async ready(): Promise<void> {
     this.readyPromise ??= this.initialize();
@@ -23,7 +68,9 @@ export class StorageEngineBase {
   }
 
   protected async initialize(): Promise<void> {
-    (this.options.backend ?? protectedRootBackend).assertAvailable();
+    const backend = this.options.backend ?? protectedRootBackend;
+    if (!isAuthorizedStorageBackend(backend)) throw new MaintenanceError('STORAGE_BACKEND_UNISSUED', 'Filesystem backend did not originate from a supported issuer');
+    backend.assertAvailable();
     await ensurePrivateDirectory(this.options.storageRoot);
     const storageRoot = await assertDurableRoot(this.options.storageRoot);
     const roots: AgentRoot[] = [...this.options.trustedRoots, { id: ROOT_ID_STORAGE, path: storageRoot }];
@@ -40,6 +87,57 @@ export class StorageEngineBase {
     await this.ready();
     const lockDirectory = join(this.roots.get(ROOT_ID_STORAGE)!, 'locks');
     return withMaintenanceLocks(['maintenance'], { lockDirectory }, () => this.withExternalSafety(sid, action));
+  }
+
+  async withDatabaseParticipant<T>(input: { readonly sessionId: string; readonly operation: 'create' | 'restore' | 'recover'; readonly archiveId?: string; readonly txId?: string; readonly schemaFingerprint: string }, action: (participant: ManagedDatabaseParticipant) => Promise<T>): Promise<T> {
+    const sid = safeSessionId(input.sessionId);
+    return this.exclusive(sid, async () => {
+      if (!/^[a-f0-9]{64}$/i.test(input.schemaFingerprint)) throw new MaintenanceError('DB_SCHEMA_DRIFT', 'Database participant requires a SHA-256 schema fingerprint');
+      const agentId = this.adapter.agentId; const rootId = ROOT_ID_STORAGE;
+      let txId: string; let aid: string; let relativePath: string; let creationTxId: string;
+      if (input.operation === 'create') {
+        if (input.archiveId !== undefined || input.txId !== undefined) throw new MaintenanceError('DB_PARTICIPANT_ID_INVALID', 'Create allocates IDs internally');
+        txId = transactionId(randomUUID()); creationTxId = txId;
+        await this.ensureMappedDirectories(rootId, `database/${agentId}/${sid}`);
+        let reserved = false; aid = ''; relativePath = '';
+        for (let attempt = 0; attempt < 8 && !reserved; attempt += 1) {
+          aid = archiveId(randomUUID()); relativePath = `database/${agentId}/${sid}/${aid}`;
+          const archiveDir = await resolveMappedPath(this.roots, { baseRoot: rootId, relativePath: nativeRel(relativePath) });
+          try { await reserveDirectoryNoReplace(archiveDir, this.options.faultHook, 'database-archive-reservation'); reserved = true; }
+          catch (error) { if (!(error instanceof MaintenanceError) || error.code !== 'RESERVATION_COLLISION' || attempt === 7) throw error; }
+        }
+        if (!reserved) throw new MaintenanceError('DB_ARCHIVE_RESERVATION_FAILED', 'Unable to reserve a unique managed database archive ID');
+        await this.putRegistry(Object.freeze({ participant: 'database', archiveId: archiveId(aid), txId: transactionId(txId), agentId, sessionId: sid, category: 'archived', rootId, relativePath, status: 'RESERVED' }));
+      } else {
+        if (!input.archiveId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.archiveId)) throw new MaintenanceError('DB_PARTICIPANT_ID_INVALID', 'Exact archive ID is required');
+        aid = input.archiveId;
+        const entry = await this.findRegistryEntry(aid);
+        if (!entry || entry.participant !== 'database' || entry.agentId !== agentId || entry.sessionId !== sid || entry.rootId !== rootId
+          || entry.relativePath !== `database/${agentId}/${sid}/${aid}` || (input.operation === 'restore' && entry.status !== 'REGISTERED')) {
+          throw new MaintenanceError('DB_ARCHIVE_UNAVAILABLE', 'Managed database archive is not registered for this adapter and session');
+        }
+        relativePath = entry.relativePath; creationTxId = entry.txId;
+        if (input.operation === 'restore') {
+          if (input.txId !== undefined) throw new MaintenanceError('DB_PARTICIPANT_ID_INVALID', 'Restore allocates its transaction ID internally');
+          txId = transactionId(randomUUID());
+        } else {
+          if (!input.txId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.txId)) throw new MaintenanceError('DB_PARTICIPANT_ID_INVALID', 'Recovery requires an exact transaction ID');
+          txId = transactionId(input.txId);
+        }
+      }
+      const archiveDir = await resolveMappedPath(this.roots, { baseRoot: rootId, relativePath: nativeRel(relativePath) });
+      const archiveFile = join(archiveDir, 'database.json');
+      const journalFile = join(this.roots.get(rootId)!, 'transactions', `${txId}.database.json`);
+      const participant: ManagedDatabaseParticipant = Object.freeze({ txId, archiveId: aid, creationTxId, agentId, sessionId: sid,
+        schemaFingerprint: input.schemaFingerprint, boundary: (this.options.backend ?? protectedRootBackend).kind === 'controlled-test' ? 'controlled-test' : 'protected-production',
+        writeArchive: async (bytes: Uint8Array) => { if (input.operation !== 'create') throw new MaintenanceError('DB_ARCHIVE_READ_ONLY', 'Only a newly reserved participant may publish an archive'); const handle = await open(archiveFile, 'wx', 0o600); try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); } await syncDirectory(archiveDir, this.options.faultHook, 'database-archive-publish'); },
+        readArchive: async () => readFile(archiveFile),
+        writeJournal: async (value: unknown) => { await atomicWriteJson(journalFile, value, this.options.faultHook, `database-journal:${txId}`); },
+        readJournal: async () => { try { return JSON.parse(await readFile(journalFile, 'utf8')) as unknown; } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; } },
+        setArchiveStatus: async (status: RegistryEntry['status']) => this.putRegistry(Object.freeze({ participant: 'database', archiveId: archiveId(aid), txId: transactionId(creationTxId), agentId, sessionId: sid, category: 'archived', rootId, relativePath, status })),
+      });
+      return action(participant);
+    });
   }
 
   protected async withExternalSafety<T>(sid: string, action: () => Promise<T>): Promise<T> {
@@ -85,7 +183,7 @@ export class StorageEngineBase {
 
   protected async putRegistry(entry: RegistryEntry): Promise<void> {
     const registry=await this.loadRegistry(); const found=registry.entries.find((row)=>row.archiveId===entry.archiveId);
-    if(found && (found.txId!==entry.txId||found.agentId!==entry.agentId||found.sessionId!==entry.sessionId||found.rootId!==entry.rootId||found.relativePath!==entry.relativePath)) {
+    if(found && (found.txId!==entry.txId||found.agentId!==entry.agentId||found.sessionId!==entry.sessionId||found.rootId!==entry.rootId||found.relativePath!==entry.relativePath||found.participant!==entry.participant)) {
       throw new MaintenanceError('REGISTRY_CONFLICT','Archive registry identity conflicts with the immutable journal');
     }
     if (found?.status === entry.status) return;

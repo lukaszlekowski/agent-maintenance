@@ -17,9 +17,9 @@ export abstract class RecoveryFlow extends StorageEngineBase {
   async recover(): Promise<readonly RecoveryDiagnostic[]> {
     await this.ready();
     const lockDirectory = join(this.roots.get(ROOT_ID_STORAGE)!, 'locks');
-    return withMaintenanceLocks(['maintenance'], { lockDirectory }, async () => {
+    const storage = await withMaintenanceLocks(['maintenance'], { lockDirectory }, async () => {
       const transactions = join(this.roots.get(ROOT_ID_STORAGE)!, 'transactions');
-      const files = (await readdir(transactions)).filter((name) => name.endsWith('.json')).sort();
+      const files = (await readdir(transactions)).filter((name) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i.test(name)).sort();
       const diagnostics: RecoveryDiagnostic[] = [];
       for (const name of files) {
         let journal: StorageJournal;
@@ -54,6 +54,8 @@ export abstract class RecoveryFlow extends StorageEngineBase {
       }
       return Object.freeze(diagnostics);
     });
+    const database = await this.recoverDatabaseParticipants();
+    return Object.freeze([...storage, ...database]);
   }
 
   protected async reconcileIndex(journal: StorageJournal): Promise<StorageJournal> {
