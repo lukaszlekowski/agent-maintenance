@@ -7,5 +7,5 @@ export default defineConfig({
   clean: true,
   target: 'node22',
   outDir: 'dist',
-  external: ['fs-ext'],
+  external: ['fs-ext', 'smol-toml'],
 });

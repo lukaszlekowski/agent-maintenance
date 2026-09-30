@@ -11,7 +11,7 @@ export type TransactionId = string & { readonly [transactionIdBrand]: true };
 export type OwnershipState = 'ACTIVE' | 'DORMANT' | 'UNKNOWN';
 export type WorkspacePathState = 'VALID' | 'UNAVAILABLE_VOLUME' | 'INACCESSIBLE' | 'CONFIRMED_OBSOLETE';
 export type CapabilityName =
-  | 'sessionRead' | 'dormantStorage' | 'restore' | 'trustEdit' | 'processTermination'
+  | 'sessionRead' | 'dormantStorage' | 'restore' | 'trustRead' | 'trustEdit' | 'processTermination'
   | 'externalWriterExclusion' | 'raceSafeFileOperations';
 
 export interface CapabilityDecision {
@@ -24,6 +24,7 @@ export interface AdapterCapabilities {
   readonly sessionRead: CapabilityDecision;
   readonly dormantStorage: CapabilityDecision;
   readonly restore: CapabilityDecision;
+  readonly trustRead: CapabilityDecision;
   readonly trustEdit: CapabilityDecision;
   readonly processTermination: CapabilityDecision;
   readonly externalWriterExclusion: CapabilityDecision;
@@ -69,6 +70,46 @@ export interface VerifiedOwnership {
   readonly evidenceId: string;
   readonly agentId: AgentId;
   readonly sessionId: SessionId;
+}
+
+export interface InventorySession {
+  readonly id: SessionId;
+  readonly agentId: AgentId;
+  readonly title: string;
+  readonly updatedAt: string;
+  readonly ownership: OwnershipState;
+  readonly ownershipExplanation: string;
+  readonly workloadKind: 'unknown' | 'logical-subagent' | 'user-session';
+}
+
+export interface InventoryTrustEntry {
+  readonly agentId: AgentId;
+  readonly path: string;
+  readonly trustLevel: 'trusted' | 'untrusted' | 'unknown';
+  readonly state: WorkspacePathState;
+  readonly explanation: string;
+}
+
+export interface TrustPathObservation {
+  readonly agentId: AgentId;
+  readonly path: string;
+  readonly trustLevel: 'trusted' | 'untrusted' | 'unknown';
+}
+
+export interface AdapterInventoryStatus {
+  readonly agentId: AgentId;
+  readonly version: string | null;
+  readonly schema: SchemaVersion | null;
+  readonly capabilities: AdapterCapabilities;
+  readonly explanation: string;
+}
+
+export interface AgentInventory {
+  readonly generatedAt: string;
+  readonly sessions: readonly InventorySession[];
+  readonly verifiedSubagents: readonly InventorySession[];
+  readonly trustEntries: readonly InventoryTrustEntry[];
+  readonly adapters: readonly AdapterInventoryStatus[];
 }
 
 export interface StructuredErrorData {
@@ -121,7 +162,7 @@ export const DISABLED_CAPABILITY = (reason: string): CapabilityDecision => Objec
 export function disabledCapabilities(reason = 'Phase 0 integration evidence is unavailable'): AdapterCapabilities {
   return Object.freeze({
     sessionRead: DISABLED_CAPABILITY(reason), dormantStorage: DISABLED_CAPABILITY(reason),
-    restore: DISABLED_CAPABILITY(reason), trustEdit: DISABLED_CAPABILITY(reason),
+    restore: DISABLED_CAPABILITY(reason), trustRead: DISABLED_CAPABILITY(reason), trustEdit: DISABLED_CAPABILITY(reason),
     processTermination: DISABLED_CAPABILITY(reason), externalWriterExclusion: DISABLED_CAPABILITY(reason),
     raceSafeFileOperations: DISABLED_CAPABILITY(reason),
   });

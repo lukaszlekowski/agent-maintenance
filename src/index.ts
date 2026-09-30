@@ -5,3 +5,7 @@ export * from './core/paths.ts';
 export * from './core/preflight.ts';
 export * from './core/process.ts';
 export * from './core/process-tree.ts';
+export * from './adapters/codex.ts';
+export * from './adapters/codex-trust.ts';
+export * from './adapters/opencode.ts';
+export * from './inventory.ts';

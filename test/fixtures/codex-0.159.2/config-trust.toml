@@ -1,0 +1,8 @@
+[projects."/tmp/agent-maintenance-codex-fixture/trusted"]
+trust_level = "trusted"
+
+[projects."/tmp/agent-maintenance-codex-fixture/untrusted"]
+trust_level = "untrusted"
+
+[projects."/tmp/agent-maintenance-codex-fixture/unknown"]
+trust_level = "future_value"

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "inventory": "node --experimental-strip-types src/cli.ts inventory --json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",
     "test": "node --experimental-strip-types --test test/**/*.test.ts"
@@ -21,7 +22,8 @@
     "typescript-eslint": "^8.48.0"
   },
   "dependencies": {
-    "fs-ext": "^2.1.1"
+    "fs-ext": "^2.1.1",
+    "smol-toml": "^1.9.0"
   },
   "allowScripts": {
     "fs-ext@2.1.1": true
