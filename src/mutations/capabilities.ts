@@ -132,7 +132,7 @@ export const nativeMutationCapabilities: Readonly<Record<AgentId, MutationCapabi
 });
 
 export const nativeTrustEditCapabilities: Readonly<Record<AgentId, MutationCapability>> = Object.freeze({
-  codex_cli: disabled('codex_cli', 'Codex trust schema is readable at version 0.159.2, but no config-writer exclusion or race-safe replacement protocol is validated', 'trust-edit'),
+  codex_cli: disabled('codex_cli', 'Codex trust schema is readable at versions 0.159.2 and 0.159.3, but no config-writer exclusion or race-safe replacement protocol is validated', 'trust-edit'),
   claude_code_cli: disabled('claude_code_cli', 'Claude trust mutation schema and config-writer exclusion are not established', 'trust-edit'),
   agy_cli: disabled('agy_cli', 'Antigravity trust mutation schema and config-writer exclusion are not established', 'trust-edit'),
   opencode_cli: disabled('opencode_cli', 'OpenCode trust mutation schema and config-writer exclusion are not established', 'trust-edit'),

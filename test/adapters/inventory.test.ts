@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { parseCodexSessionIndex, readCodexInventory, CODEX_SUPPORTED_VERSION } from '../../src/adapters/codex.ts';
+import { parseCodexSessionIndex, readCodexInventory, CODEX_SUPPORTED_VERSIONS } from '../../src/adapters/codex.ts';
 import { parseCodexProjectTrust, readCodexProjectTrust } from '../../src/adapters/codex-trust.ts';
 import { parseOpenCodeSessionList } from '../../src/adapters/opencode.ts';
 import { buildInventory } from '../../src/inventory.ts';
@@ -70,11 +70,13 @@ test('Codex unknown version fails closed and exact supported version leaves owne
     const unsupported = await readCodexInventory(root, 'codex-cli 9.9.9');
     assert.equal(unsupported.sessions.length, 0);
     assert.equal(unsupported.status.capabilities.sessionRead.enabled, false);
-    const supported = await readCodexInventory(root, CODEX_SUPPORTED_VERSION);
-    assert.equal(supported.sessions.length, 2);
-    assert.equal(supported.trustPaths.length, 0);
-    assert.equal(supported.status.capabilities.trustRead.enabled, true);
-    assert.ok(supported.sessions.every((session) => session.ownership === 'UNKNOWN' && session.workloadKind === 'unknown'));
+    for (const version of CODEX_SUPPORTED_VERSIONS) {
+      const supported = await readCodexInventory(root, version);
+      assert.equal(supported.sessions.length, 2);
+      assert.equal(supported.trustPaths.length, 0);
+      assert.equal(supported.status.capabilities.trustRead.enabled, true);
+      assert.ok(supported.sessions.every((session) => session.ownership === 'UNKNOWN' && session.workloadKind === 'unknown'));
+    }
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -127,7 +129,7 @@ test('CLI wires disposable Codex trust config into JSON, leaves source config un
     await writeFile(configPath, originalConfig, 'utf8');
     const openCodeProbe = join(root, 'opencode-invoked');
     const scripts: Record<string, string> = {
-      codex: '#!/bin/sh\nprintf "codex-cli 0.159.2\\n"\n',
+      codex: '#!/bin/sh\nprintf "codex-cli 0.159.3\\n"\n',
       claude: '#!/bin/sh\nprintf "2.1.277 (Claude Code)\\n"\n',
       agy: '#!/bin/sh\nprintf "agy 1.2.14\\n"\n',
       opencode: `#!/bin/sh\nif [ "$1" = "--version" ]; then printf "1.18.33\\n"; else touch '${openCodeProbe}'; exit 97; fi\n`,

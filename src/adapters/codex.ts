@@ -5,7 +5,7 @@ import { MaintenanceError, sessionId, type AdapterCapabilities, type AdapterInve
 import { CODEX_TRUST_CONFIG_FINGERPRINT, CODEX_TRUST_CONFIG_SCHEMA, readCodexProjectTrust } from './codex-trust.ts';
 import { nativeAdapterCapabilities } from '../mutations/capabilities.ts';
 
-export const CODEX_SUPPORTED_VERSION = 'codex-cli 0.159.2';
+export const CODEX_SUPPORTED_VERSIONS = Object.freeze(['codex-cli 0.159.2', 'codex-cli 0.159.3']);
 export const CODEX_INDEX_SCHEMA_VERSION = 'openai/codex rust-v0.159.2 SessionIndexEntry';
 export const CODEX_INDEX_SCHEMA_FINGERPRINT = createHash('sha256')
   .update('SessionIndexEntry{id:ThreadId,thread_name:string,updated_at:string};append-only;last-line-wins')
@@ -35,7 +35,7 @@ export function parseCodexSessionIndex(text: string): readonly CodexIndexEntry[]
     if (!isRecord(value) || typeof value.id !== 'string' || !UUID.test(value.id)
       || typeof value.thread_name !== 'string' || typeof value.updated_at !== 'string'
       || (value.updated_at !== 'unknown' && (!Number.isFinite(Date.parse(value.updated_at)) || !/^\d{4}-\d\d-\d\dT/.test(value.updated_at)))) {
-      throw new MaintenanceError('ADAPTER_SCHEMA_DRIFT', `Codex session index line ${i + 1} does not match the validated 0.159.2 index schema`);
+      throw new MaintenanceError('ADAPTER_SCHEMA_DRIFT', `Codex session index line ${i + 1} does not match the validated ${CODEX_INDEX_SCHEMA_VERSION} schema`);
     }
     latest.set(value.id, Object.freeze({ id: value.id, thread_name: value.thread_name, updated_at: value.updated_at }));
   }
@@ -44,7 +44,7 @@ export function parseCodexSessionIndex(text: string): readonly CodexIndexEntry[]
 
 function supportedCapabilities(reason: string, sessionRead: AdapterCapabilities['sessionRead']): AdapterCapabilities {
   const disabled = nativeAdapterCapabilities('codex_cli', reason);
-  return Object.freeze({ ...disabled, sessionRead, trustRead: Object.freeze({ enabled: true, reason: `Read-only ${CODEX_TRUST_CONFIG_SCHEMA} extraction is validated for exact version ${CODEX_SUPPORTED_VERSION}` }) });
+  return Object.freeze({ ...disabled, sessionRead, trustRead: Object.freeze({ enabled: true, reason: `Read-only ${CODEX_TRUST_CONFIG_SCHEMA} extraction is validated for versions ${CODEX_SUPPORTED_VERSIONS.join(' and ')}` }) });
 }
 
 export async function readCodexInventory(root: string, detectedVersion: string | null): Promise<{
@@ -53,10 +53,10 @@ export async function readCodexInventory(root: string, detectedVersion: string |
   readonly status: AdapterInventoryStatus;
 }> {
   const baseReason = 'Phase 0 provides no external-writer exclusion, session ownership, or mutation evidence';
-  if (detectedVersion !== CODEX_SUPPORTED_VERSION) {
+  if (detectedVersion === null || !CODEX_SUPPORTED_VERSIONS.includes(detectedVersion)) {
     const reason = detectedVersion === null
       ? 'Codex executable version is unavailable; supported schema/version is not established'
-      : `Codex ${detectedVersion} is outside the exact validated parser version ${CODEX_SUPPORTED_VERSION}`;
+      : `Codex ${detectedVersion} is outside the validated parser versions ${CODEX_SUPPORTED_VERSIONS.join(', ')}`;
     return Object.freeze({ sessions: Object.freeze([]), trustPaths: Object.freeze([]), status: Object.freeze({
       agentId: 'codex_cli', version: detectedVersion, schema: null, capabilities: nativeAdapterCapabilities('codex_cli', reason), explanation: reason,
     }) });
