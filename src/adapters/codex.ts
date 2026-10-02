@@ -5,7 +5,8 @@ import { MaintenanceError, sessionId, type AdapterCapabilities, type AdapterInve
 import { CODEX_TRUST_CONFIG_FINGERPRINT, CODEX_TRUST_CONFIG_SCHEMA, readCodexProjectTrust } from './codex-trust.ts';
 import { nativeAdapterCapabilities } from '../mutations/capabilities.ts';
 
-export const CODEX_SUPPORTED_VERSIONS = Object.freeze(['codex-cli 0.159.2', 'codex-cli 0.159.3']);
+// 0.160.0 retains the validated index and project-trust contracts.
+export const CODEX_SUPPORTED_VERSIONS = Object.freeze(['codex-cli 0.159.2', 'codex-cli 0.159.3', 'codex-cli 0.160.0']);
 export const CODEX_INDEX_SCHEMA_VERSION = 'openai/codex rust-v0.159.2 SessionIndexEntry';
 export const CODEX_INDEX_SCHEMA_FINGERPRINT = createHash('sha256')
   .update('SessionIndexEntry{id:ThreadId,thread_name:string,updated_at:string};append-only;last-line-wins')

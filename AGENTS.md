@@ -15,6 +15,7 @@
 ## Subagent review and context limits
 
 - Delegate only when the user explicitly requests delegation or an applicable instruction requires it. Use the model and reasoning effort requested by the user.
+- Subagents should save token cost: default to a cheaper model (Luna) with a bounded task and fresh context when delegation is authorized. Do not inherit the parent model by default; use a more expensive model only when explicitly requested.
 - Give subagents bounded tasks and the relevant file paths. Prefer a fresh context rather than forwarding the full conversation when the task can be described independently.
 - Include these reporting restrictions in each subagent task, including follow-up tasks to agents created before this file existed.
 - Orchestrators and other agents waiting for subagents must use `wait_agent` to wait for messages or completion notifications. Do not poll agent status, inspect files or processes to infer progress, or send routine progress/status requests. Renew a timed-out wait without performing a progress check. Review artifacts only after a completion/handoff notification; send follow-ups for actionable findings or necessary task clarification, not merely to ask how work is progressing.
@@ -28,6 +29,7 @@
 
 ## Documentation locations
 
-- Specification: `docs/dev/design/project_summary.md`.
-- Canonical implementation plan: `docs/dev/design/plan.md`.
-- Phase plans and execution checklist: `docs/dev/execution/`.
+- Initial specification and implementation evidence: `docs/dev/archived/1. initial set-up/design/` and `docs/dev/archived/1. initial set-up/execution/`.
+- Current canonical implementation plan: `docs/dev/2. codex enablement and small fixes/plan.md`.
+- Current phase execution evidence: alongside the current plan, as phases are executed.
+- Draft usability issues: `docs/dev/usability-issues-memo.md`.

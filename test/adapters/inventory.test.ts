@@ -67,16 +67,26 @@ test('Codex unknown version fails closed and exact supported version leaves owne
   const root = await mkdtemp(join(tmpdir(), 'agent-maintenance-codex-'));
   try {
     await writeFixture(join(root, 'session_index.jsonl'), await readFile(CODEx, 'utf8'));
+    await writeFixture(join(root, 'config.toml'), await readFile(CODEX_TRUST, 'utf8'));
+    const indexBefore = await readFile(join(root, 'session_index.jsonl'));
+    const configBefore = await readFile(join(root, 'config.toml'));
+    assert.ok(CODEX_SUPPORTED_VERSIONS.includes('codex-cli 0.160.0'));
     const unsupported = await readCodexInventory(root, 'codex-cli 9.9.9');
     assert.equal(unsupported.sessions.length, 0);
     assert.equal(unsupported.status.capabilities.sessionRead.enabled, false);
     for (const version of CODEX_SUPPORTED_VERSIONS) {
       const supported = await readCodexInventory(root, version);
       assert.equal(supported.sessions.length, 2);
-      assert.equal(supported.trustPaths.length, 0);
+      assert.equal(supported.trustPaths.length, 3);
+      assert.equal(supported.status.capabilities.sessionRead.enabled, true);
       assert.equal(supported.status.capabilities.trustRead.enabled, true);
+      for (const capability of ['dormantStorage', 'restore', 'trustEdit', 'processTermination'] as const) {
+        assert.equal(supported.status.capabilities[capability].enabled, false);
+      }
       assert.ok(supported.sessions.every((session) => session.ownership === 'UNKNOWN' && session.workloadKind === 'unknown'));
     }
+    assert.deepEqual(await readFile(join(root, 'session_index.jsonl')), indexBefore);
+    assert.deepEqual(await readFile(join(root, 'config.toml')), configBefore);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -129,7 +139,7 @@ test('CLI wires disposable Codex trust config into JSON, leaves source config un
     await writeFile(configPath, originalConfig, 'utf8');
     const openCodeProbe = join(root, 'opencode-invoked');
     const scripts: Record<string, string> = {
-      codex: '#!/bin/sh\nprintf "codex-cli 0.159.3\\n"\n',
+      codex: '#!/bin/sh\nprintf "codex-cli 0.160.0\\n"\n',
       claude: '#!/bin/sh\nprintf "2.1.277 (Claude Code)\\n"\n',
       agy: '#!/bin/sh\nprintf "agy 1.2.14\\n"\n',
       opencode: `#!/bin/sh\nif [ "$1" = "--version" ]; then printf "1.18.33\\n"; else touch '${openCodeProbe}'; exit 97; fi\n`,
